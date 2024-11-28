@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title></title>
+	<meta charset="utf-8"/>
+    <meta content="">
+<style>
+	html, body {height: 100%; width: 100%; margin: 0;}
+	*{
+		box-sizing: border-box;
+		word-break: break-word;
+	}
+</style>
+	</head>
+	<body>
+			<div id = "inhalt" style = "overflow-y: scroll; height: 85%; width: 100%; background: lightgrey;  padding: 10px;"></div>
+			<input id = "beitr" placeholder = "Text hier eingeben" style = "height: 15%; width: 100%; font-size: 2em;"></input>
+		
+	</body>
+	<script>
+		function Schloss(){
+			return {
+				geschlossen: false,
+				wartend: [],
+				zu: async function(){
+					var th = this;
+					return new Promise( (g,f) => {
+						if(this.geschlossen){
+							th.wartend.push({ok: g, err: f});
+						}
+						else{
+							this.geschlossen = true;
+							setTimeout(() => {g();});
+						}
+					});
+					
+				},
+				auf: function(){
+					if(this.wartend){
+						if(this.wartend.length > 0){
+							var ok = this.wartend.shift().ok;
+							setTimeout(() => {ok();});
+						}
+						else
+							this.geschlossen = false;
+					}
+					else throw "Schloss bereits offen";
+				},
+				sichern: async function(f){
+					await this.zu();
+					var r = await f();
+					this.auf();
+					return r;
+				},
+			};
+		}
+		async function Verbindung(adr){
+			var ws = new WebSocket(adr);
+			var r = {
+				socket: ws,
+				wfunc: [],
+				wnachr: [],
+				aktiv: true,
+				send: function(inh){
+					console.log("<< " + inh);
+					ws.send(inh);},
+				close: function(){ws.close();},
+				recv: async function(){
+					return new Promise( (g,f) => {
+						if(r.wnachr.length > 0){
+							console.log(r.wnachr);
+							var temp = r.wnachr.shift();
+							console.log("nimm "+ temp);
+							console.log(r.wnachr);
+							setTimeout(() => {g(temp);});
+						}
+						else{
+							if(r.aktiv){
+								r.wfunc.push({ok: g, err: f})
+								}
+							else{
+								f();
+							}
+						}
+					});
+				}
+			};
+			return new Promise( (rF,rE) => {
+				ws.onerror = function(ev){
+					rE();
+				}
+				ws.onopen = function(ev){
+					rF(r);
+				}
+				ws.onmessage = function(ev){
+					console.log(">> " + ev.data);
+					if(r.wfunc.length > 0){
+						r.wfunc.shift().ok(ev.data);
+					}
+					else{
+						console.log("push " + ev.data);
+						r.wnachr.push(ev.data);
+					}
+				}
+				ws.onclose = function(ev){
+					while(r.wfunc.length != 0)
+						r.wfunc.shift().err();
+					r.aktiv = false;
+				}
+			});
+		}
+		async function VerbindungSync(adr){
+			var r = {
+				empf : null,
+				schl : new Schloss(),
+				aussen_schl : new Schloss(),
+				vers_ok : null,
+				vers_err : null,
+				verb : await Verbindung(adr),
+				aktiv:true,
+				send: function(inh){r.verb.send(inh);},
+				close: function(){r.verb.close();},
+				recv: async function(){return await r.verb.recv();},
+				beginn: async function(){
+					await r.aussen_schl.zu();
+					await r.schl.zu();
+					r.verb.send("?");
+					r.schl.auf();
+					await new Promise( (g,f) => {r.vers_ok = g; r.vers_err = f;});
+				},
+				ende: async function(){
+					r.schl.auf();
+					r.aussen_schl.auf();
+				},
+				startesync : (empfang) => {r.empf = empfang; schleife();}
+			}
+			async function schleife(){
+				while(r.aktiv){
+					w = await r.recv();
+					console.log("erhalten: "+ w)
+					await r.schl.zu();
+					if(w == "?"){
+						await r.send("!");
+						console.log("ankunft");
+						await r.empf(this);
+					}
+					else if(w == "!"){
+						r.vers_ok();
+						await r.schl.zu();
+					}
+					r.schl.auf();
+				}
+			}
+			return r;
+		}
+var ws;
+var inh = document.getElementById("inhalt");
+var beitr = document.getElementById("beitr");
+
+starten();
+async function starten(){
+	var ws = await VerbindungSync("ws://localhost:9249");
+	var nr = Number(await ws.recv());
+	console.log("Nr: " + nr);
+	ws.startesync(async function(){
+		console.log("recives");
+		var art = await ws.recv();
+		console.log("recives "+ art);
+		switch(art){
+			case "u":
+				inh.appendChild(nachrichtsabschnitt(await nachrichtneu(ws)));
+				scro();
+			break;
+			default:
+				console.log("fehler " + art);
+				alert("Der Server ist überlastet");
+				beitr.disabled = false;
+			break;
+		}
+	});
+	
+	var name = "";
+	while(true){
+		name = prompt("Bitte einen neuen Nutzernamen eingeben");
+		passwort = prompt("Bitte ein Passwort eingeben");
+		
+		await ws.beginn();
+		ws.send("a");
+		ws.send(name);
+		ws.send(passwort);
+		var antwort = await ws.recv();
+		await ws.ende();
+		if(antwort == "ok" || antwort == "neu")
+			break;
+		alert(antwort);
+	}
+	beitr.onkeyup = async function(e){
+		if(e.key === "Enter"){
+		
+			await ws.beginn();
+			ws.send("n");
+			ws.send(beitr.value);
+			beitr.disabled = true;
+			e.preventDefault();
+			var aw = await ws.recv();
+			await ws.ende();
+			
+			if(aw == "ok")
+				beitr.value = "";
+			else
+				alert("Der Server ist überlastet");
+			beitr.disabled = false;
+		}
+	}
+	beitr.focus();
+	for(let i = nr -1 ;i >= 0; i--){
+		await ws.beginn();
+		ws.send("#");
+		ws.send(i.toString());
+		var plus = nachrichtsabschnitt(await nachrichtneu(ws));
+		inh.insertBefore(plus, inh.firstChild);
+		scro();
+		await ws.ende();
+	}
+}
+async function nachrichtneu(ws){
+	var nachr = {};
+	nachr.nummer = Number(await ws.recv());
+	nachr.inhalt = await ws.recv();
+	nachr.nutzer = await ws.recv();
+	nachr.datum = await ws.recv();
+	return nachr;
+}
+function nachrichtsabschnitt(na){
+	p = document.createElement("p");
+	
+	d = document.createElement("font");
+	d.color = "green";
+	d.size = 1;
+	d.textContent = "\r\n" + na.datum.substring(4,6) + "." + na.datum.substring(2,4) + "." + na.datum.substring(0,2) + " " + na.datum.substring(6,8) + ":" + na.datum.substring(8,10);
+	p.appendChild(d);
+	
+	p.appendChild(document.createElement("br"));
+	
+	n = document.createElement("font");
+	n.color = "blue";
+	n.textContent = na.nutzer + ": ";
+	p.appendChild(n);
+	
+	t = document.createElement("font");
+	t.color = "black";
+	t.textContent = na.inhalt;
+	p.appendChild(t);
+	
+	
+	return p;
+}
+
+
+beitr.onfocus = function(e){scro();}
+function scro(){
+	if(beitr == document.activeElement)
+		inh.scrollTop = inh.scrollHeight;
+}
+
+
+	</script>
+</html>
