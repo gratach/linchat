@@ -1,1 +1,3 @@
 *.dat
+dist/
+custom_config.json
