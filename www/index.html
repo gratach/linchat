@@ -156,6 +156,7 @@
 var ws;
 var inh = document.getElementById("inhalt");
 var beitr = document.getElementById("beitr");
+var wasScrolledDown = false;
 
 starten();
 async function starten(){
@@ -181,7 +182,7 @@ async function starten(){
 	
 	var name = "";
 	while(true){
-		name = prompt("Bitte einen neuen Nutzernamen eingeben");
+		name = prompt("Bitte einen Nutzernamen eingeben");
 		passwort = prompt("Bitte ein Passwort eingeben");
 		
 		await ws.beginn();
@@ -259,10 +260,19 @@ function nachrichtsabschnitt(na){
 
 beitr.onfocus = function(e){scro();}
 function scro(){
-	if(beitr == document.activeElement)
+	if(beitr == document.activeElement || wasScrolledDown){
 		inh.scrollTop = inh.scrollHeight;
+		wasScrolledDown = true;
+	}
 }
 
+inh.onscroll = function(e){checkScroll();}
+function checkScroll(){
+	if(inh.scrollTop + inh.clientHeight >= inh.scrollHeight)
+		wasScrolledDown = true;
+	else
+		wasScrolledDown = false;
+}
 
 	</script>
 </html>

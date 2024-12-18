@@ -164,7 +164,6 @@ async def uhr():
 async def aktivsyncstart(v):
 	ws = v[0]
 	await v[2].acquire()
-	print("uig")
 	await ws.send("?")
 	v[3] = loop.create_future()
 	rfut = await v[3]
