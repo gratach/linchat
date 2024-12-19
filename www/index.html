@@ -156,7 +156,8 @@
 var ws;
 var inh = document.getElementById("inhalt");
 var beitr = document.getElementById("beitr");
-var wasScrolledDown = false;
+beitr.value = "";
+var wasScrolledDown = true;
 
 starten();
 async function starten(){
@@ -196,8 +197,8 @@ async function starten(){
 		alert(antwort);
 	}
 	beitr.onkeyup = async function(e){
-		if(e.key === "Enter"){
-		
+		if(e.key === "Enter" && beitr.value != ""){
+			wasScrolledDown = true;
 			await ws.beginn();
 			ws.send("n");
 			ws.send(beitr.value);
@@ -211,6 +212,7 @@ async function starten(){
 			else
 				alert("Der Server ist überlastet");
 			beitr.disabled = false;
+			beitr.focus();
 		}
 	}
 	beitr.focus();
@@ -260,7 +262,7 @@ function nachrichtsabschnitt(na){
 
 beitr.onfocus = function(e){scro();}
 function scro(){
-	if(beitr == document.activeElement || wasScrolledDown){
+	if(wasScrolledDown){
 		inh.scrollTop = inh.scrollHeight;
 		wasScrolledDown = true;
 	}
