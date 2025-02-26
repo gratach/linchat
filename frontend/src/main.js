@@ -8,10 +8,4 @@ var chatView = new ChatView(testChatViewUnit);
 var splitView = new SplitView();
 splitView.rootNode = rootNode;
 var change = false;
-setInterval(() => {
-    if (change)
-        chatView.rootNode = splitView.leftDiv;
-    else
-        chatView.rootNode = splitView.rightDiv;
-    change = !change;
-}, 1000);
+chatView.rootNode = splitView.leftDiv;

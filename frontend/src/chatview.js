@@ -7,7 +7,7 @@ export class ChatView extends View {
         super();
         
         this.childNode = document.createElement('div');
-        styleBox(this.childNode);
+        styleBox(this.childNode, {"overflow-y": "scroll"});
 
         this.chatViewUnit = chatViewUnit;
         this.messagesInfos = [];
@@ -22,22 +22,36 @@ export class ChatView extends View {
         styleBox(this.sendNode, {"width": "100%", "height": "100%"});
         this.sendNode.type = "text";
         this.sendNodeDiv.appendChild(this.sendNode);
-        
-        for (var i = 0; i < 10; i++) {
-            this.loadMessagesIfNecessary();
-        }
+
+        this.isLoading = false;
+        this.childNode.addEventListener('scroll', () => this.loadMessagesIfNecessary());
+        this.loadMessagesIfNecessary();
     }
-    loadMessagesIfNecessary() {
-        if (this.oldestUnloadedMessageId === null)
+    async loadMessagesIfNecessary() {
+        if (this.isLoading)
             return;
-        var messageView = this.chatViewUnit.getMessageView(this.oldestUnloadedMessageId);
-        var messageDiv = document.createElement('div');
-        styleBox(messageDiv, {"width": "100%", "height": null});
-        messageView.rootNode = messageDiv;
-        this.childNode.insertBefore(messageDiv, this.childNode.firstChild);
-        var messageInfo = {"id": this.oldestUnloadedMessageId, "view" : messageView, "div": messageDiv};
-        this.messagesInfos.unshift(messageInfo);
-        this.oldestUnloadedMessageId = this.chatViewUnit.getPreviousMessageId(this.oldestUnloadedMessageId);
+        this.isLoading = true;
+        while(true) {
+            if (this.childNode.childNodes[0].getBoundingClientRect().top - this.childNode.getBoundingClientRect().top < -this.childNode.getBoundingClientRect().height)
+                break;
+            if (this.oldestUnloadedMessageId === null)
+                break;
+            await new Promise(r => setTimeout(r, 100));
+            //log current time
+            var date = new Date();
+            console.log(date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds());
+            var messageView = this.chatViewUnit.getMessageView(this.oldestUnloadedMessageId);
+            var messageDiv = document.createElement('div');
+            styleBox(messageDiv, {"width": "100%", "height": null});
+            messageView.rootNode = messageDiv;
+            var oldScrollTop = this.childNode.scrollTop;
+            this.childNode.insertBefore(messageDiv, this.childNode.firstChild);
+            this.childNode.scrollTop = oldScrollTop + this.childNode.childNodes[0].getBoundingClientRect().height;
+            var messageInfo = {"id": this.oldestUnloadedMessageId, "view" : messageView, "div": messageDiv};
+            this.messagesInfos.unshift(messageInfo);
+            this.oldestUnloadedMessageId = this.chatViewUnit.getPreviousMessageId(this.oldestUnloadedMessageId);
+        }
+        this.isLoading = false;
     }
 }
 
