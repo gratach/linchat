@@ -1,7 +1,8 @@
-import { SplitView, ChatView } from "./chatview";
+import { SplitView, ChatView, TestChatViewUnit } from "./chatview";
 
-var rootNode = document.getElementById("root");
-var chatView = new ChatView();
+var rootNode = document.getElementsByTagName("body")[0];
+var testChatViewUnit = new TestChatViewUnit();
+var chatView = new ChatView(testChatViewUnit);
 var splitView = new SplitView();
 splitView.rootNode = rootNode;
 var change = false;
