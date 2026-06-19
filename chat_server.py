@@ -3,9 +3,14 @@ from pathlib import Path
 import asyncio
 import datetime
 import websockets
+import subprocess
+import os
 
 kapa = 2000
 grenz = 3000
+notify_me_script_path = (Path(__file__).parent / "notify-me").resolve()
+min_time_between_notifications_seconds = 60 * 60 * 24
+time_since_last_notification_seconds = min_time_between_notifications_seconds
 
 
 verb = []
@@ -118,6 +123,7 @@ def neunutzer(na, pa):
 			schreibebytes(nu[1], fil)
 			schreibebytes(nu[2], fil)
 			schreibebytes(nu[3], fil)
+		activity_detected()
 		return nu
 	return None
 	
@@ -140,6 +146,7 @@ def neunachricht(te, nu, ws):
 			schreibebytes(na[3], fil)
 		for ve in verb:
 			loop.create_task(sendenachricht_lock(na, ve))
+		activity_detected()
 		return na
 	
 def zeitstempel():
@@ -155,11 +162,22 @@ def erlaubnis(menge):
 async def uhr():
 	global grenz
 	global kapa
+	global time_since_last_notification_seconds
 	while True:
 		await asyncio.sleep(1)
-		kapa += 50
+		kapa += 10
 		if kapa > grenz:
 			kapa = grenz
+		time_since_last_notification_seconds += 1
+
+def activity_detected():
+	global time_since_last_notification_seconds
+	global min_time_between_notification_seconds
+	if time_since_last_notification_seconds >= min_time_between_notification_seconds:
+		time_since_last_notification_seconds = 0
+		if notify_me_script_path.is_file() and os.access(str(notify_me_script_path), os.X_OK):
+			subprocess.Popen([str(notify_me_script_path)])
+
 				
 async def aktivsyncstart(v):
 	ws = v[0]
@@ -205,7 +223,7 @@ async def annahme(ws, path):
 					f.set_result(f2)
 					await f2
 				else:
-					raise "Fehler im Protokoll"
+					raise Exception("Fehler im Protokoll")
 				if passivnachrichtwartet:
 					sy = "?"
 			else:
@@ -213,12 +231,11 @@ async def annahme(ws, path):
 			if passivnachrichtwartet:
 				passivnachrichtwartet = False
 				if sy != "?":
-					raise "Fehler im Protokoll"
+					raise Exception("Fehler im Protokoll")
 				await ws.send("!")
 
 				m = await ws.recv()
 				if m == "a":
-	
 					na = bytes(await ws.recv(), 'utf-8')
 					pw = bytes(await ws.recv(), 'utf-8')
 					if len(na) > 100:
@@ -238,6 +255,7 @@ async def annahme(ws, path):
 							else:
 								nu = None
 								await ws.send("Der Nutzername existiert bereits aber das Passwort ist falsch")
+								await asyncio.sleep(3) # Brute force attacks
 						else:
 							nu = neunutzer(na, pw)
 							if nu:
@@ -258,12 +276,11 @@ async def annahme(ws, path):
 				
 				elif m == "#":
 					await sendenachricht(nachr[int(await ws.recv())], v[0])
-	except Exception as e:
-		print(e)
+	finally:
 		try:
 			verb.remove(v)
 		except Exception as e:
-			print(e)
+			pass
 
 chatvorbereiten()
 		
@@ -272,7 +289,4 @@ serv = websockets.serve(annahme, "localhost", 9249, max_size=grenz)
 loop.create_task(uhr())
 loop.run_until_complete(serv)
 loop.run_forever()
-	
-
-
 
