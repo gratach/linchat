@@ -112,7 +112,7 @@ def plusnachricht(te, nu, ze):
 	return na
 	
 def neunutzer(na, pa):
-	if erlaubnis(20 + len(na) + len(pa)):
+	if erlaubnis(120 + len(na) + len(pa)):
 		nu = plusnutzer(na, pa, zeitstempel())
 		with open("nutz.dat", "ab") as fil:
 			schreibebytes(nu[1], fil)
@@ -132,7 +132,7 @@ async def sendenachricht_lock(na, ve):
 		await sendenachricht(na, ve[0])
 def neunachricht(te, nu, ws):
 	global verb
-	if erlaubnis(20 + len(te)):
+	if erlaubnis(70 + len(te)):
 		na = plusnachricht(te, nu, zeitstempel())
 		with open("nachr.dat", "ab") as fil:
 			schreibebytes(na[1], fil)
@@ -267,7 +267,7 @@ async def annahme(ws, path):
 
 chatvorbereiten()
 		
-serv = websockets.serve(annahme, "localhost", 9249)
+serv = websockets.serve(annahme, "localhost", 9249, max_size=grenz)
 
 loop.create_task(uhr())
 loop.run_until_complete(serv)
