@@ -20,8 +20,6 @@ nachr = []
 
 ueberlastet = "Der Server ist überlastet"
 
-loop = asyncio.get_event_loop()
-
 def schreibeweg(weg, f):
 	f.write(weg)
 	f.write(bytes([0xFF]))
@@ -145,7 +143,7 @@ def neunachricht(te, nu, ws):
 			schreibezahl(na[2][0], fil)
 			schreibebytes(na[3], fil)
 		for ve in verb:
-			loop.create_task(sendenachricht_lock(na, ve))
+			asyncio.create_task(sendenachricht_lock(na, ve))
 		activity_detected()
 		return na
 	
@@ -172,8 +170,8 @@ async def uhr():
 
 def activity_detected():
 	global time_since_last_notification_seconds
-	global min_time_between_notification_seconds
-	if time_since_last_notification_seconds >= min_time_between_notification_seconds:
+	global min_time_between_notifications_seconds
+	if time_since_last_notification_seconds >= min_time_between_notifications_seconds:
 		time_since_last_notification_seconds = 0
 		if notify_me_script_path.is_file() and os.access(str(notify_me_script_path), os.X_OK):
 			subprocess.Popen([str(notify_me_script_path)])
@@ -183,7 +181,7 @@ async def aktivsyncstart(v):
 	ws = v[0]
 	await v[2].acquire()
 	await ws.send("?")
-	v[3] = loop.create_future()
+	v[3] = asyncio.get_running_loop().create_future()
 	rfut = await v[3]
 	def aktivsyncende():
 		v[2].release()
@@ -199,13 +197,13 @@ class AktivSync:
 	async def __aexit__(self, exc_type, exc, tb):
 		self.stop()
 
-async def annahme(ws, path):
+async def annahme(ws):
 	global nutz
 	global nachr
 	global verb
 	global nutzdict
 	passivnachrichtwartet = False
-	v = [ws, path, asyncio.Lock(), None]
+	v = [ws, None, asyncio.Lock(), None]
 	nu = None
 	try:
 		verb.append(v)
@@ -219,7 +217,7 @@ async def annahme(ws, path):
 				if sy == "!":
 					f = v[3]
 					v[3] = None
-					f2 = loop.create_future()
+					f2 = asyncio.get_running_loop().create_future()
 					f.set_result(f2)
 					await f2
 				else:
@@ -276,17 +274,19 @@ async def annahme(ws, path):
 				
 				elif m == "#":
 					await sendenachricht(nachr[int(await ws.recv())], v[0])
+	except:
+		pass
 	finally:
 		try:
 			verb.remove(v)
 		except Exception as e:
 			pass
 
-chatvorbereiten()
-		
-serv = websockets.serve(annahme, "localhost", 9249, max_size=grenz)
+async def main():
+	chatvorbereiten()
+	asyncio.create_task(uhr())
+	async with websockets.serve(annahme, "localhost", 9249, max_size=grenz):
+		await asyncio.Future()
 
-loop.create_task(uhr())
-loop.run_until_complete(serv)
-loop.run_forever()
+asyncio.run(main())
 
